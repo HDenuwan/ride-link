@@ -1,0 +1,30 @@
+# Maven build outputs
+target/
+*/target/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Secrets and environment files
+.env
+*.env
+application-local.properties
+application-secret.properties
+
+# Do NOT commit real secrets
+*.key
+*.pem
+*.p12
+
+# Log files
+*.log
+logs/
