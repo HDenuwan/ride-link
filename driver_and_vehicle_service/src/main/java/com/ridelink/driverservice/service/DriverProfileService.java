@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+
 /**
  * Business logic for Driver & Vehicle Service.
  */
@@ -60,6 +62,37 @@ public class DriverProfileService {
         DriverProfile profile = repository.findByAccountId(accountId)
                 .orElseThrow(() -> new DriverNotFoundException("No driver profile found for accountId: " + accountId));
         return toResponse(profile);
+    }
+
+    /**
+     * Updates availability status of a driver.
+     */
+    public DriverProfileResponse updateAvailability(String profileId, String status) {
+        AvailabilityStatus newStatus;
+        try {
+            newStatus = AvailabilityStatus.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Invalid availability status: " + status);
+        }
+
+        DriverProfile profile = findById(profileId);
+        profile.setAvailability(newStatus);
+        log.info("Driver {} availability set to {}", profileId, newStatus);
+        return toResponse(repository.save(profile));
+    }
+
+    /**
+     * Updates simulated current location of a driver.
+     */
+    public DriverProfileResponse updateLocation(String profileId, LocationUpdateRequest request) {
+        DriverProfile profile = findById(profileId);
+        profile.setCurrentLocation(Location.builder()
+                .latitude(request.getLatitude())
+                .longitude(request.getLongitude())
+                .placeName(request.getPlaceName())
+                .updatedAt(Instant.now())
+                .build());
+        return toResponse(repository.save(profile));
     }
 
     // -----------------------------------------------------------------------
