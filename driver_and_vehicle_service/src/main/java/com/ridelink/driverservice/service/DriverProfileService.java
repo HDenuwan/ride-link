@@ -95,6 +95,15 @@ public class DriverProfileService {
         return toResponse(repository.save(profile));
     }
 
+    /**
+     * Updates vehicle details for a driver.
+     */
+    public DriverProfileResponse updateVehicle(String profileId, DriverProfileRequest.VehicleDto vehicleDto) {
+        DriverProfile profile = findById(profileId);
+        profile.setVehicle(mapVehicle(vehicleDto));
+        return toResponse(repository.save(profile));
+    }
+
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
