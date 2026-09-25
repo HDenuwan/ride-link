@@ -56,4 +56,11 @@ public class DriverController {
             @Valid @RequestBody LocationUpdateRequest request) {
         return ResponseEntity.ok(service.updateLocation(id, request));
     }
+
+    @PatchMapping("/{id}/vehicle")
+    public ResponseEntity<DriverProfileResponse> updateVehicle(
+            @PathVariable String id,
+            @Valid @RequestBody DriverProfileRequest.VehicleDto vehicleDto) {
+        return ResponseEntity.ok(service.updateVehicle(id, vehicleDto));
+    }
 }
