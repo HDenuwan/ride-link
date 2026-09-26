@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -39,6 +40,12 @@ public class DriverController {
         return ResponseEntity.ok(service.getByAccountId(accountId));
     }
 
+    @GetMapping("/available")
+    public ResponseEntity<List<DriverProfileResponse>> getAvailable(
+            @RequestParam(required = false) String serviceArea) {
+        return ResponseEntity.ok(service.getAvailableDrivers(serviceArea));
+    }
+
     @PatchMapping("/{id}/availability")
     public ResponseEntity<DriverProfileResponse> updateAvailability(
             @PathVariable String id,
@@ -62,5 +69,17 @@ public class DriverController {
             @PathVariable String id,
             @Valid @RequestBody DriverProfileRequest.VehicleDto vehicleDto) {
         return ResponseEntity.ok(service.updateVehicle(id, vehicleDto));
+    }
+
+    @PatchMapping("/{id}/on-ride")
+    public ResponseEntity<Void> setOnRide(@PathVariable String id) {
+        service.setOnRide(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{id}/release")
+    public ResponseEntity<Void> release(@PathVariable String id) {
+        service.setAvailable(id);
+        return ResponseEntity.ok().build();
     }
 }
