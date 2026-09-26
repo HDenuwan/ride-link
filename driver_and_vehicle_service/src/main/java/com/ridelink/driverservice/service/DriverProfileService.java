@@ -10,6 +10,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Business logic for Driver & Vehicle Service.
@@ -102,6 +104,40 @@ public class DriverProfileService {
         DriverProfile profile = findById(profileId);
         profile.setVehicle(mapVehicle(vehicleDto));
         return toResponse(repository.save(profile));
+    }
+
+    /**
+     * Returns all AVAILABLE drivers, optionally filtered by service area.
+     * Used by Ride Management Service via synchronous REST call.
+     */
+    public List<DriverProfileResponse> getAvailableDrivers(String serviceArea) {
+        List<DriverProfile> drivers;
+        if (serviceArea != null && !serviceArea.isBlank()) {
+            drivers = repository.findByAvailabilityAndServiceArea(AvailabilityStatus.AVAILABLE, serviceArea);
+        } else {
+            drivers = repository.findByAvailability(AvailabilityStatus.AVAILABLE);
+        }
+        return drivers.stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    /**
+     * Sets driver status to ON_RIDE (called after driver assignment).
+     */
+    public void setOnRide(String profileId) {
+        DriverProfile profile = findById(profileId);
+        profile.setAvailability(AvailabilityStatus.ON_RIDE);
+        repository.save(profile);
+        log.info("Driver {} marked as ON_RIDE", profileId);
+    }
+
+    /**
+     * Sets driver back to AVAILABLE after ride completion/cancellation.
+     */
+    public void setAvailable(String profileId) {
+        DriverProfile profile = findById(profileId);
+        profile.setAvailability(AvailabilityStatus.AVAILABLE);
+        repository.save(profile);
+        log.info("Driver {} marked as AVAILABLE", profileId);
     }
 
     // -----------------------------------------------------------------------
