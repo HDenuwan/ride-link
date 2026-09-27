@@ -15,10 +15,13 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Business logic for account management.
+ * Follows Single Responsibility and Dependency Inversion principles.
  */
 @Service
 public class AccountService {
@@ -42,6 +45,7 @@ public class AccountService {
 
     /**
      * Registers a new passenger or driver account.
+     * Validates uniqueness of email and phone before persisting.
      */
     public AccountResponse register(RegisterRequest request) {
         if (accountRepository.existsByEmail(request.getEmail())) {
@@ -119,6 +123,43 @@ public class AccountService {
         Account saved = accountRepository.save(account);
         log.info("Profile updated for accountId={}", accountId);
         return toResponse(saved);
+    }
+
+    /**
+     * Suspends an account (admin operation).
+     */
+    public AccountResponse suspendAccount(String accountId) {
+        Account account = findById(accountId);
+        account.setStatus(AccountStatus.SUSPENDED);
+        return toResponse(accountRepository.save(account));
+    }
+
+    /**
+     * Reactivates a suspended account (admin operation).
+     */
+    public AccountResponse activateAccount(String accountId) {
+        Account account = findById(accountId);
+        account.setStatus(AccountStatus.ACTIVE);
+        return toResponse(accountRepository.save(account));
+    }
+
+    /**
+     * Soft-deletes an account (admin operation).
+     */
+    public void deleteAccount(String accountId) {
+        Account account = findById(accountId);
+        account.setStatus(AccountStatus.DELETED);
+        accountRepository.save(account);
+        log.info("Account soft-deleted: id={}", accountId);
+    }
+
+    /**
+     * Lists all accounts (admin operation).
+     */
+    public List<AccountResponse> listAll() {
+        return accountRepository.findAll().stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
     // -----------------------------------------------------------------------
