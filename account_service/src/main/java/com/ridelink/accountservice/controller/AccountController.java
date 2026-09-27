@@ -8,6 +8,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * REST controller for Account Service endpoints.
  * Exposes registration, authentication, and profile management.
@@ -62,5 +64,30 @@ public class AccountController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(accountService.getProfile(id));
+    }
+
+    // ------------------------------------------------------------------
+    // Admin-only endpoints
+    // ------------------------------------------------------------------
+
+    @GetMapping
+    public ResponseEntity<List<AccountResponse>> listAll() {
+        return ResponseEntity.ok(accountService.listAll());
+    }
+
+    @PatchMapping("/{id}/suspend")
+    public ResponseEntity<AccountResponse> suspend(@PathVariable String id) {
+        return ResponseEntity.ok(accountService.suspendAccount(id));
+    }
+
+    @PatchMapping("/{id}/activate")
+    public ResponseEntity<AccountResponse> activate(@PathVariable String id) {
+        return ResponseEntity.ok(accountService.activateAccount(id));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable String id) {
+        accountService.deleteAccount(id);
+        return ResponseEntity.noContent().build();
     }
 }
