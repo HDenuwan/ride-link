@@ -5,11 +5,12 @@ import com.ridelink.accountservice.service.AccountService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 /**
  * REST controller for Account Service endpoints.
- * Exposes registration and authentication.
+ * Exposes registration, authentication, and profile management.
  */
 @RestController
 @RequestMapping("/api/accounts")
@@ -33,5 +34,33 @@ public class AccountController {
     @PostMapping("/login")
     public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(accountService.login(request));
+    }
+
+    // ------------------------------------------------------------------
+    // Authenticated endpoints (any valid role)
+    // ------------------------------------------------------------------
+
+    @GetMapping("/me")
+    public ResponseEntity<AccountResponse> getMyProfile(Authentication auth) {
+        String accountId = (String) auth.getPrincipal();
+        return ResponseEntity.ok(accountService.getProfile(accountId));
+    }
+
+    @PatchMapping("/me")
+    public ResponseEntity<AccountResponse> updateMyProfile(@RequestBody @Valid UpdateProfileRequest request,
+                                                            Authentication auth) {
+        String accountId = (String) auth.getPrincipal();
+        return ResponseEntity.ok(accountService.updateProfile(accountId, request));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<AccountResponse> getProfile(@PathVariable String id, Authentication auth) {
+        String requesterId = (String) auth.getPrincipal();
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        if (!isAdmin && !requesterId.equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(accountService.getProfile(id));
     }
 }
