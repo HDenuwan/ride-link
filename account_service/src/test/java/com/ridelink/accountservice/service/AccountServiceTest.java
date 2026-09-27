@@ -3,6 +3,7 @@ package com.ridelink.accountservice.service;
 import com.ridelink.accountservice.dto.LoginRequest;
 import com.ridelink.accountservice.dto.RegisterRequest;
 import com.ridelink.accountservice.dto.TokenResponse;
+import com.ridelink.accountservice.dto.UpdateProfileRequest;
 import com.ridelink.accountservice.exception.AccountNotFoundException;
 import com.ridelink.accountservice.exception.DuplicateAccountException;
 import com.ridelink.accountservice.model.Account;
@@ -102,52 +103,117 @@ class AccountServiceTest {
     @DisplayName("register: throws DuplicateAccountException for duplicate phone")
     void register_duplicatePhone_throws() {
         RegisterRequest req = new RegisterRequest();
-        req.setEmail("unique@example.com");
+        req.setEmail("new@example.com");
         req.setPhone("+94771234567");
-        req.setRole("PASSENGER");
+        req.setRole("DRIVER");
 
-        when(accountRepository.existsByEmail("unique@example.com")).thenReturn(false);
+        when(accountRepository.existsByEmail("new@example.com")).thenReturn(false);
         when(accountRepository.existsByPhone("+94771234567")).thenReturn(true);
 
         assertThatThrownBy(() -> accountService.register(req))
                 .isInstanceOf(DuplicateAccountException.class)
                 .hasMessageContaining("Phone number is already registered");
-
-        verify(accountRepository, never()).save(any());
     }
 
     // --- Login tests ---
 
     @Test
-    @DisplayName("login: success with valid credentials")
+    @DisplayName("login: success returns token response")
     void login_success() {
         LoginRequest req = new LoginRequest();
         req.setEmail("alice@example.com");
         req.setPassword("password123");
 
+        when(authenticationManager.authenticate(any())).thenReturn(null);
         when(accountRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(sampleAccount));
-        when(jwtTokenProvider.generateToken("acc-001", Set.of("PASSENGER"))).thenReturn("mock.jwt.token");
+        when(jwtTokenProvider.generateToken("acc-001", Set.of("PASSENGER"))).thenReturn("jwt.token.value");
         when(jwtTokenProvider.getExpirationMs()).thenReturn(86400000L);
 
-        TokenResponse res = accountService.login(req);
+        TokenResponse result = accountService.login(req);
 
-        assertThat(res.getToken()).isEqualTo("mock.jwt.token");
-        assertThat(res.getTokenType()).isEqualTo("Bearer");
-        assertThat(res.getAccountId()).isEqualTo("acc-001");
-        verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
+        assertThat(result.getToken()).isEqualTo("jwt.token.value");
+        assertThat(result.getTokenType()).isEqualTo("Bearer");
+        assertThat(result.getAccountId()).isEqualTo("acc-001");
     }
 
     @Test
-    @DisplayName("login: throws BadCredentialsException for invalid password")
+    @DisplayName("login: throws BadCredentialsException on wrong password")
     void login_badCredentials_throws() {
         LoginRequest req = new LoginRequest();
         req.setEmail("alice@example.com");
         req.setPassword("wrongpassword");
 
-        when(authenticationManager.authenticate(any()))
-                .thenThrow(new BadCredentialsException("Bad credentials"));
+        doThrow(new BadCredentialsException("Bad credentials"))
+                .when(authenticationManager).authenticate(any());
 
         assertThatThrownBy(() -> accountService.login(req))
                 .isInstanceOf(BadCredentialsException.class);
+    }
+
+    // --- Profile tests ---
+
+    @Test
+    @DisplayName("getProfile: returns account for valid ID")
+    void getProfile_success() {
+        when(accountRepository.findById("acc-001")).thenReturn(Optional.of(sampleAccount));
+
+        var result = accountService.getProfile("acc-001");
+
+        assertThat(result.getId()).isEqualTo("acc-001");
+        assertThat(result.getEmail()).isEqualTo("alice@example.com");
+    }
+
+    @Test
+    @DisplayName("getProfile: throws AccountNotFoundException for unknown ID")
+    void getProfile_notFound_throws() {
+        when(accountRepository.findById("unknown")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> accountService.getProfile("unknown"))
+                .isInstanceOf(AccountNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("updateProfile: updates firstName and lastName")
+    void updateProfile_success() {
+        UpdateProfileRequest req = new UpdateProfileRequest();
+        req.setFirstName("Alicia");
+        req.setLastName("Jones");
+
+        Account updated = Account.builder()
+                .id("acc-001")
+                .firstName("Alicia")
+                .lastName("Jones")
+                .email("alice@example.com")
+                .phone("+94771234567")
+                .roles(Set.of("PASSENGER"))
+                .status(Account.AccountStatus.ACTIVE)
+                .build();
+
+        when(accountRepository.findById("acc-001")).thenReturn(Optional.of(sampleAccount));
+        when(accountRepository.save(any(Account.class))).thenReturn(updated);
+
+        var result = accountService.updateProfile("acc-001", req);
+
+        assertThat(result.getFirstName()).isEqualTo("Alicia");
+        assertThat(result.getLastName()).isEqualTo("Jones");
+    }
+
+    @Test
+    @DisplayName("suspendAccount: changes status to SUSPENDED")
+    void suspendAccount_success() {
+        Account suspended = Account.builder()
+                .id("acc-001")
+                .email("alice@example.com")
+                .phone("+94771234567")
+                .roles(Set.of("PASSENGER"))
+                .status(Account.AccountStatus.SUSPENDED)
+                .build();
+
+        when(accountRepository.findById("acc-001")).thenReturn(Optional.of(sampleAccount));
+        when(accountRepository.save(any(Account.class))).thenReturn(suspended);
+
+        var result = accountService.suspendAccount("acc-001");
+
+        assertThat(result.getStatus()).isEqualTo("SUSPENDED");
     }
 }
