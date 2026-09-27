@@ -2,6 +2,7 @@ package com.ridelink.driverservice.service;
 
 import com.ridelink.driverservice.dto.DriverProfileRequest;
 import com.ridelink.driverservice.dto.DriverProfileResponse;
+import com.ridelink.driverservice.dto.LocationUpdateRequest;
 import com.ridelink.driverservice.exception.DriverNotFoundException;
 import com.ridelink.driverservice.model.DriverProfile;
 import com.ridelink.driverservice.model.DriverProfile.AvailabilityStatus;
@@ -14,6 +15,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.mockito.Mockito.lenient;
+
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -93,6 +97,68 @@ class DriverProfileServiceTest {
 
         assertThatThrownBy(() -> service.getById("unknown"))
                 .isInstanceOf(DriverNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("getAvailableDrivers: returns only AVAILABLE drivers")
+    void getAvailableDrivers_noFilter() {
+        when(repository.findByAvailability(AvailabilityStatus.AVAILABLE))
+                .thenReturn(List.of(sampleProfile));
+
+        List<DriverProfileResponse> results = service.getAvailableDrivers(null);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getAvailability()).isEqualTo("AVAILABLE");
+    }
+
+    @Test
+    @DisplayName("updateAvailability: changes status to UNAVAILABLE")
+    void updateAvailability_success() {
+        DriverProfile updated = DriverProfile.builder()
+                .id("drv-001")
+                .accountId("acc-002")
+                .licenseNumber("LIC-001")
+                .licenseExpiry("2027-12-31")
+                .availability(AvailabilityStatus.UNAVAILABLE)
+                .serviceArea("Colombo")
+                .vehicle(sampleProfile.getVehicle())
+                .build();
+
+        when(repository.findById("drv-001")).thenReturn(Optional.of(sampleProfile));
+        when(repository.save(any())).thenReturn(updated);
+
+        DriverProfileResponse result = service.updateAvailability("drv-001", "UNAVAILABLE");
+
+        assertThat(result.getAvailability()).isEqualTo("UNAVAILABLE");
+    }
+
+    @Test
+    @DisplayName("updateAvailability: throws for invalid status string")
+    void updateAvailability_invalidStatus() {
+        // The service resolves the profile first, then validates the status string
+        lenient().when(repository.findById("drv-001")).thenReturn(Optional.of(sampleProfile));
+
+        assertThatThrownBy(() -> service.updateAvailability("drv-001", "FLYING"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Invalid availability status");
+    }
+
+    @Test
+    @DisplayName("updateLocation: updates location fields")
+    void updateLocation_success() {
+        LocationUpdateRequest req = new LocationUpdateRequest();
+        req.setLatitude(6.9271);
+        req.setLongitude(79.8612);
+        req.setPlaceName("Colombo Fort");
+
+        when(repository.findById("drv-001")).thenReturn(Optional.of(sampleProfile));
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        DriverProfileResponse result = service.updateLocation("drv-001", req);
+
+        assertThat(result.getCurrentLocation()).isNotNull();
+        assertThat(result.getCurrentLocation().getLatitude()).isEqualTo(6.9271);
+        assertThat(result.getCurrentLocation().getPlaceName()).isEqualTo("Colombo Fort");
     }
 
     private DriverProfileRequest buildRequest() {
