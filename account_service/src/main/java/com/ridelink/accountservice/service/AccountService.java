@@ -92,6 +92,35 @@ public class AccountService {
                 .build();
     }
 
+    /**
+     * Retrieves the profile of an account by its ID.
+     */
+    public AccountResponse getProfile(String accountId) {
+        Account account = findById(accountId);
+        return toResponse(account);
+    }
+
+    /**
+     * Partially updates profile fields (firstName, lastName, phone).
+     */
+    public AccountResponse updateProfile(String accountId, UpdateProfileRequest request) {
+        Account account = findById(accountId);
+
+        if (request.getFirstName() != null) account.setFirstName(request.getFirstName());
+        if (request.getLastName() != null) account.setLastName(request.getLastName());
+        if (request.getPhone() != null) {
+            if (!request.getPhone().equals(account.getPhone())
+                    && accountRepository.existsByPhone(request.getPhone())) {
+                throw new DuplicateAccountException("Phone number already in use: " + request.getPhone());
+            }
+            account.setPhone(request.getPhone());
+        }
+
+        Account saved = accountRepository.save(account);
+        log.info("Profile updated for accountId={}", accountId);
+        return toResponse(saved);
+    }
+
     // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
