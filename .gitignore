@@ -28,3 +28,12 @@ application-secret.properties
 # Log files
 *.log
 logs/
+
+# JVM crash logs and heap dumps
+hs_err_pid*
+replay_pid*
+*.hprof
+
+# Maven wrapper cache and timing
+.mvn/timing.properties
+.mvn/.cache
