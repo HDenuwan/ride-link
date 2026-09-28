@@ -1,0 +1,131 @@
+name: RideLink CI – Build and Test All Services
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  account-service:
+    name: Account Service – Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: account_service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Test
+        env:
+          JWT_SECRET: ci-test-secret-key-must-be-at-least-256-bits-long-for-testing
+          MONGO_URI: mongodb://localhost:27017/ridelink_accounts_test
+        run: mvn --no-transfer-progress clean verify
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: account-service-test-results
+          path: account_service/target/surefire-reports/
+
+  driver-vehicle-service:
+    name: Driver & Vehicle Service – Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: driver_and_vehicle_service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Test
+        env:
+          JWT_SECRET: ci-test-secret-key-must-be-at-least-256-bits-long-for-testing
+          MONGO_URI: mongodb://localhost:27017/ridelink_drivers_test
+        run: mvn --no-transfer-progress clean verify
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: driver-service-test-results
+          path: driver_and_vehicle_service/target/surefire-reports/
+
+  ride-management-service:
+    name: Ride Management Service – Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ride_management_service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Test
+        env:
+          JWT_SECRET: ci-test-secret-key-must-be-at-least-256-bits-long-for-testing
+          MONGO_URI: mongodb://localhost:27017/ridelink_rides_test
+          DRIVER_SERVICE_URL: http://localhost:8082
+          FARE_SERVICE_URL: http://localhost:8084
+        run: mvn --no-transfer-progress clean verify
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ride-service-test-results
+          path: ride_management_service/target/surefire-reports/
+
+  fare-payment-service:
+    name: Fare & Payment Service – Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fare_and_payment_service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Test
+        env:
+          JWT_SECRET: ci-test-secret-key-must-be-at-least-256-bits-long-for-testing
+          MONGO_URI: mongodb://localhost:27017/ridelink_payments_test
+          RIDE_SERVICE_URL: http://localhost:8083
+        run: mvn --no-transfer-progress clean verify
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fare-service-test-results
+          path: fare_and_payment_service/target/surefire-reports/
