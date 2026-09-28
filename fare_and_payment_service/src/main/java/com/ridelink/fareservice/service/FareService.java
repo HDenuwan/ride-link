@@ -1,6 +1,9 @@
 package com.ridelink.fareservice.service;
 
 import com.ridelink.fareservice.dto.*;
+import com.ridelink.fareservice.exception.PaymentNotFoundException;
+import com.ridelink.fareservice.model.Payment;
+import com.ridelink.fareservice.model.Payment.PaymentStatus;
 import com.ridelink.fareservice.repository.PaymentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +14,8 @@ import org.springframework.web.client.RestTemplate;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Fare calculation and payment simulation logic.
@@ -86,6 +91,67 @@ public class FareService {
                 .build();
     }
 
+    /**
+     * Records a simulated payment for a completed ride.
+     * Notifies Ride Management Service with the payment ID.
+     */
+    public PaymentResponse createPayment(PaymentRequest request) {
+        if (paymentRepository.existsByRideId(request.getRideId())) {
+            throw new IllegalStateException("Payment already exists for ride: " + request.getRideId());
+        }
+
+        FareCalculation calc = calculateFare(request.getDistanceKm());
+
+        PaymentStatus status;
+        String failureReason = null;
+
+        if (request.isSimulateFailure()) {
+            status = PaymentStatus.FAILED;
+            failureReason = "Simulated payment failure: insufficient funds";
+            log.warn("Payment simulation failure for ride {}", request.getRideId());
+        } else {
+            status = PaymentStatus.COMPLETED;
+        }
+
+        Payment payment = Payment.builder()
+                .rideId(request.getRideId())
+                .passengerId(request.getPassengerId())
+                .driverProfileId(request.getDriverProfileId())
+                .distanceKm(request.getDistanceKm())
+                .baseRate(baseRate)
+                .perKmRate(perKmRate)
+                .distanceCharge(calc.distanceCharge)
+                .surchargeAmount(calc.surchargeAmount)
+                .totalFare(calc.totalFare)
+                .surchargeReason(calc.surchargeReason)
+                .paymentMethod(request.getPaymentMethod())
+                .status(status)
+                .failureReason(failureReason)
+                .build();
+
+        Payment saved = paymentRepository.save(payment);
+        log.info("Payment {} created for ride {} status={}", saved.getId(), request.getRideId(), status);
+
+        // Notify Ride Management Service about the payment ID (synchronous REST)
+        notifyRideService(request.getRideId(), saved.getId());
+
+        return toResponse(saved);
+    }
+
+    public PaymentResponse getById(String paymentId) {
+        return toResponse(findById(paymentId));
+    }
+
+    public PaymentResponse getByRideId(String rideId) {
+        return toResponse(paymentRepository.findByRideId(rideId)
+                .orElseThrow(() -> new PaymentNotFoundException("No payment found for ride: " + rideId)));
+    }
+
+    public List<PaymentResponse> getByPassenger(String passengerId) {
+        return paymentRepository.findByPassengerId(passengerId).stream()
+                .map(this::toResponse).collect(Collectors.toList());
+    }
+
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
@@ -129,6 +195,42 @@ public class FareService {
     private boolean isPeakTime(LocalTime t) {
         int h = t.getHour();
         return (h >= 7 && h < 9) || (h >= 17 && h < 19);
+    }
+
+    private void notifyRideService(String rideId, String paymentId) {
+        try {
+            String url = rideServiceUrl + "/api/rides/" + rideId + "/payment";
+            var body = java.util.Map.of("paymentId", paymentId);
+            restTemplate.patchForObject(url, body, Void.class);
+            log.info("Notified Ride Service: ride {} linked to payment {}", rideId, paymentId);
+        } catch (Exception e) {
+            log.error("Failed to notify Ride Service for ride {}: {}", rideId, e.getMessage());
+        }
+    }
+
+    private Payment findById(String id) {
+        return paymentRepository.findById(id)
+                .orElseThrow(() -> new PaymentNotFoundException("Payment not found: " + id));
+    }
+
+    private PaymentResponse toResponse(Payment p) {
+        return PaymentResponse.builder()
+                .id(p.getId())
+                .rideId(p.getRideId())
+                .passengerId(p.getPassengerId())
+                .driverProfileId(p.getDriverProfileId())
+                .distanceKm(p.getDistanceKm())
+                .baseRate(p.getBaseRate())
+                .distanceCharge(p.getDistanceCharge())
+                .surchargeAmount(p.getSurchargeAmount())
+                .surchargeReason(p.getSurchargeReason())
+                .totalFare(p.getTotalFare())
+                .paymentMethod(p.getPaymentMethod())
+                .status(p.getStatus().name())
+                .failureReason(p.getFailureReason())
+                .createdAt(p.getCreatedAt())
+                .updatedAt(p.getUpdatedAt())
+                .build();
     }
 
     /** Internal value object for calculation results. */
